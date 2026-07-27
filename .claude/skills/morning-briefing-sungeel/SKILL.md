@@ -20,7 +20,10 @@ HTML 대시보드를 만들어 Resend로 본인 Gmail에 발송한다.
 ## 1단계: 메일 수집 (Gmail)
 - 대상 주소(수신 To 또는 Cc에 아래 둘 중 하나라도 포함):
   - ben.seo@sungeelht.com
-  - sungeelht||c1000||d11sm000@sungeelht.com
+  - sungeelht||c1000||d11sm000@sungeelht.com — **이 주소는 실제로 쓰이는 사내 배포 그룹 주소이며, Ben의 개인 주소 없이 이 그룹으로만 수신되는 메일이 실제로 존재한다. 반드시 함께 검색해야 하며 빠지면 안 된다.**
+- **검색 쿼리 작성 시 주의**: 위 그룹 주소에는 `|` 문자가 포함되어 있어, 따옴표 없이 쿼리에 넣으면 Gmail이 특수문자로 오인해 매칭이 깨질 수 있다. 반드시 다음처럼 **큰따옴표로 감싸서** 검색한다:
+  `(to:ben.seo@sungeelht.com OR cc:ben.seo@sungeelht.com OR to:"sungeelht||c1000||d11sm000@sungeelht.com" OR cc:"sungeelht||c1000||d11sm000@sungeelht.com") after:YYYY/MM/DD`
+  (YYYY/MM/DD는 전날 날짜. 이 쿼리 하나로 두 주소를 한 번에 검색한다 — 두 번 검색하지 않는다.)
 - Gmail 검색은 날짜(일) 단위만 정확하므로, 전날짜와 당일짜를 모두 포함해
   넓게 가져온 뒤, 각 메일의 실제 수신 타임스탬프를 확인해
   "전날 17:00 ~ 실행 시각" 범위에 드는 것만 남긴다(정밀 필터링 필수).
