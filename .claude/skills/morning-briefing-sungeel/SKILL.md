@@ -4,7 +4,7 @@ description: "성일하이텍 Ben의 모닝 브리핑 대시보드를 생성하�
 ---
 
 ## 목적
-Ben(ben.seo@sungeelht.com)이 매일 아침 07:00(KST)에 하루를 한눈에 파악할 수 있는
+Ben(ben.seo@sungeelht.com)이 매일 아침 07:05(KST)에 하루를 한눈에 파악할 수 있는
 HTML 대시보드를 만들어 Resend로 본인 Gmail에 발송한다.
 
 ## 토큰/비용 원칙 (중요)
@@ -15,7 +15,7 @@ HTML 대시보드를 만들어 Resend로 본인 Gmail에 발송한다.
 ## 시간 기준
 - 모든 시각은 KST(Asia/Seoul) 기준으로 계산한다.
 - 메일 수집 범위: "실행일 기준 전날 17:00 ~ 실행 시각"
-  (예: 오늘 07:00 실행이면 → 어제 17:00 ~ 오늘 07:00)
+  (예: 오늘 07:05 실행이면 → 어제 17:00 ~ 오늘 07:05)
 
 ## 1단계: 메일 수집 (Gmail)
 - 대상 주소(수신 To 또는 Cc에 아래 둘 중 하나라도 포함):
@@ -53,7 +53,7 @@ HTML 대시보드를 만들어 Resend로 본인 Gmail에 발송한다.
 2. **오늘 처리해야 할 것 / 놓치면 안 되는 것**
    - 액션 필요 메일 + 오늘 마감/시작 일정 중 놓치면 곤란한 것을 모아
      상단 강조 박스로 정리(3~7개, 많으면 중요도 순으로 자르기). 각 항목 1~2문장.
-3. **수신 메일** (단일 컬럼, "액션 필요" 먼저 → "참조만 하면 됨" 그다음 — 5단계 참조)
+3. **수신 메일** (좌우 2단 — 왼쪽 "액션 필요", 오른쪽 "참조만 하면 됨" — 5단계 참조. 폭은 화면 크기에 비례해서 줄어들 뿐 항상 2단 유지)
    - 각 항목: 수신 시각, 보낸 사람, 제목, 최대 2문장 요약, (있다면) 액션아이템 한 줄
 
 근거 없는 내용(추측한 마감일, 확인 안 된 발신자 의도 등)은 절대 만들어내지 않는다.
@@ -61,48 +61,58 @@ HTML 대시보드를 만들어 Resend로 본인 Gmail에 발송한다.
 
 ## 5단계: HTML 작성 규칙 (모든 클라이언트에서 동일하게 보이는 것이 최우선)
 
-**배경**: 아웃룩 데스크톱, 사내 그룹웨어(데스크톱/모바일)에서 각각 다르게 보이는 문제가 있었다. 원인은 (1) flex/grid 사용, (2) `<style>` 미디어쿼리에 의존한 반응형 — 일부 클라이언트(그룹웨어 모바일 등)가 `<style>` 블록 자체를 제거해버려서 미디어쿼리가 적용되지 않음. 그래서 이번엔 **미디어쿼리나 `<style>` 태그에 전혀 의존하지 않는, 처음부터 끝까지 단일 컬럼(세로 스택) 구조**로 만든다. 컬럼을 나누지 않으므로 화면 폭에 따라 재배치할 필요 자체가 없어지고, 모든 클라이언트에서 동일하게 보인다.
+**배경 및 이번 방식**: 아웃룩 데스크톱, 사내 그룹웨어(데스크톱/모바일)에서 각각 다르게 보이는 문제가 있었다. 원인은 (1) flex/grid 사용, (2) `<style>` 미디어쿼리에 의존한 반응형 — 그룹웨어 모바일이 `<style>`/`<head>` 블록을 통째로 제거해서 미디어쿼리가 적용되지 않는 것으로 추정됨. 그래서 **미디어쿼리·`<style>` 태그에 전혀 의존하지 않는 "유동폭(fluid) 2단 테이블"**로 만든다: 좌우 2개 `<td>`를 `width="50%"`(HTML 속성 + 인라인 style 둘 다)로 지정하고, 바깥 컨테이너를 `max-width:680px; width:100%`로 감싼다. 화면이 넓으면 두 컬럼이 넓게, 좁으면 두 컬럼이 좁게 — **항상 2단을 유지한 채 폭만 화면 크기에 비례해서 줄어든다.** `<style>` 블록이 통째로 제거되는 클라이언트에서도 인라인 `width` 속성/스타일은 살아남으므로 안전하다.
 
-- **레이아웃은 100% `<table>` 기반, 전부 세로로 쌓는 단일 컬럼 구조**로만 만든다. `display:flex`, `display:grid`는 절대 사용하지 않는다. **좌우 2단 배치도 사용하지 않는다** (그룹웨어 모바일에서 재배치가 안 되는 문제의 원인이었음).
-- `<style>` 태그나 미디어�쿼리는 아예 사용하지 않는다. 모든 스타일은 인라인(`style="..."`)로만 준다.
-- 폰트는 시스템 폰트 스택만 사용: `-apple-system, "Segoe UI", "Malgun Gothic", sans-serif` (웹폰트 임베드 금지).
+- **레이아웃은 100% `<table>` 기반**. `display:flex`, `display:grid`는 절대 사용하지 않는다.
+- `<style>` 태그나 미디어쿼리는 사용하지 않는다(일부 클라이언트가 통째로 제거하므로 의존하면 안 됨). 모든 스타일은 인라인(`style="..."`)과 HTML `width`/`valign` 속성으로만 준다.
+- **Outlook 폰트/한글 간격 버그 대응**: Outlook(Word 렌더링 엔진)은 라틴 문자와 한글에 서로 다른 폰트 규칙(mso-ascii-font-family / mso-fareast-font-family)을 적용해서, 지정하지 않으면 숫자·한글 혼용 텍스트에 엉뚱한 간격이 생기거나("2026 년 7 월 27 일"처럼) 폰트가 어긋난다. 그래서 폰트를 지정하는 모든 곳(바깥 컨테이너 테이블, 그리고 각 메일 카드 테이블 — Outlook은 테이블이 바뀌면 폰트 상속이 끊길 때가 있어 카드마다 재지정)에 아래처럼 mso 전용 속성을 반드시 같이 넣는다:
+  `style="font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif; mso-ascii-font-family:'Segoe UI'; mso-hansi-font-family:'Segoe UI'; mso-fareast-font-family:'Malgun Gothic';"`
+  (완전히 고쳐진다는 보장은 없는 Outlook 자체의 알려진 한계이나, 이게 표준 완화 방법이다.)
 - 배경 그라데이션, box-shadow 등 Outlook 미지원 속성은 쓰지 않는다. border-radius는 Outlook에서 사각형으로 나올 뿐 깨지지는 않으므로 소량 사용은 허용.
-- 바깥 `<table width="100%">`로 감싸 가운데 정렬하고, 안쪽 콘텐츠 `<table>`은 `width="100%" style="max-width:680px;"`로 준다 — 픽셀 고정 대신 `max-width` + `100%`를 쓰면 미디어쿼리 없이도 좁은 화면에서 자연스럽게 줄어든다.
+- 바깥 `<table width="100%">`로 감싸 가운데 정렬하고, 안쪽 콘텐츠 `<table>`은 `width="100%" style="max-width:680px;"`로 준다.
 
-### 수신 메일 항목 마크업 (단일 컬럼, 순서대로 반복)
+### 수신 메일 섹션 마크업 (유동폭 2단 — 왼쪽 액션 필요 / 오른쪽 참조만, 폭만 화면 크기에 비례)
 
 ```html
-<!-- 액션 필요 -->
-<div style="font-size:13px;font-weight:700;color:#C6613F;margin:16px 0 8px;">액션 필요</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E4E3DC; margin-bottom:10px;">
-  <tr><td style="padding:12px 14px;">
-    <div style="font-size:12px;color:#6B6A63;">7월 26일 22:55 · debainkorea@sungeelht.com</div>
-    <div style="font-weight:600;margin:4px 0 6px;font-size:14px;">메일 제목</div>
-    <div style="font-size:14px;color:#3a3833;line-height:1.6;">최대 2문장 요약.</div>
-    <div style="font-size:13px;color:#6B6A63;border-top:1px solid #E4E3DC;padding-top:6px;margin-top:6px;"><b>액션:</b> 한 줄</div>
-  </td></tr>
-</table>
-<!-- (액션 필요 메일 수만큼 반복) -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td width="50%" valign="top" style="width:50%; padding:0 8px 0 0; font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif; mso-ascii-font-family:'Segoe UI'; mso-hansi-font-family:'Segoe UI'; mso-fareast-font-family:'Malgun Gothic';">
+      <div style="font-size:13px;font-weight:700;color:#C6613F;margin:0 0 10px;">액션 필요</div>
 
-<!-- 참조만 하면 됨 -->
-<div style="font-size:13px;font-weight:700;color:#6B6A63;margin:20px 0 8px;">참조만 하면 됨</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E4E3DC; margin-bottom:10px;">
-  <tr><td style="padding:12px 14px;">
-    <div style="font-size:12px;color:#6B6A63;">7월 27일 09:14 · park.minhwi@jp.panasonic.com</div>
-    <div style="font-weight:600;margin:4px 0 6px;font-size:14px;">메일 제목</div>
-    <div style="font-size:14px;color:#3a3833;line-height:1.6;">최대 2문장 요약.</div>
-  </td></tr>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E4E3DC; margin-bottom:10px; font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif; mso-ascii-font-family:'Segoe UI'; mso-hansi-font-family:'Segoe UI'; mso-fareast-font-family:'Malgun Gothic';">
+        <tr><td style="padding:12px 14px;">
+          <div style="font-size:12px;color:#6B6A63;">7월 26일 22:55 · debainkorea@sungeelht.com</div>
+          <div style="font-weight:600;margin:4px 0 6px;font-size:14px;">메일 제목</div>
+          <div style="font-size:14px;color:#3a3833;line-height:1.6;">최대 2문장 요약.</div>
+          <div style="font-size:13px;color:#6B6A63;border-top:1px solid #E4E3DC;padding-top:6px;margin-top:6px;"><b>액션:</b> 한 줄</div>
+        </td></tr>
+      </table>
+      <!-- (액션 필요 메일 수만큼 위 카드 반복) -->
+    </td>
+    <td width="50%" valign="top" style="width:50%; padding:0 0 0 8px; font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif; mso-ascii-font-family:'Segoe UI'; mso-hansi-font-family:'Segoe UI'; mso-fareast-font-family:'Malgun Gothic';">
+      <div style="font-size:13px;font-weight:700;color:#6B6A63;margin:0 0 10px;">참조만 하면 됨</div>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E4E3DC; margin-bottom:10px; font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif; mso-ascii-font-family:'Segoe UI'; mso-hansi-font-family:'Segoe UI'; mso-fareast-font-family:'Malgun Gothic';">
+        <tr><td style="padding:12px 14px;">
+          <div style="font-size:12px;color:#6B6A63;">7월 27일 09:14 · park.minhwi@jp.panasonic.com</div>
+          <div style="font-weight:600;margin:4px 0 6px;font-size:14px;">메일 제목</div>
+          <div style="font-size:14px;color:#3a3833;line-height:1.6;">최대 2문장 요약.</div>
+        </td></tr>
+      </table>
+      <!-- (참조만 메일 수만큼 위 카드 반복) -->
+    </td>
+  </tr>
 </table>
-<!-- (참조만 메일 수만큼 반복) -->
 ```
 
-- 액션 필요 또는 참조만 메일이 0개인 경우 해당 소제목 아래 "해당 없음" 한 줄만 표시.
+- 액션 필요 또는 참조만 메일이 0개인 경우 해당 컬럼에 "해당 없음" 한 줄만 표시.
+- 한쪽 메일이 훨씬 많아도 2단 구조는 유지한다(양쪽 개수를 억지로 맞추지 않음).
 
 ## 6단계: 발송 (Resend)
 - 제목: `[모닝 브리핑] YYYY-MM-DD` (실행일 기준, KST)
 - 수신: ben.seo@sungeelht.com
 - 본문: 위 규칙으로 만든 HTML 전체를 그대로 html 파라미터에 담아 발송한다.
-- 발송 전 스스로 재검토할 것: 단일 컬럼 구조인지, `<style>`/flex/grid를 안 썼는지, 액션 필요→참조만 순서인지, 요약이 2문장을 넘지 않는지, 수신 시각이 다 표기됐는지.
+- 발송 전 스스로 재검토할 것: 좌우 2단(유동폭) 구조인지, `<style>`/flex/grid를 안 썼는지, 모든 폰트 지정에 mso-ascii/mso-fareast가 같이 들어갔는지, 액션 필요(왼쪽)→참조만(오른쪽) 배치인지, 요약이 2문장을 넘지 않는지, 수신 시각이 다 표기됐는지.
 
 ## 무인 실행 시 주의
 - 이 스킬이 루틴(무인 스케줄)으로 실행될 때는 사용자에게 아무것도 묻지 않고
