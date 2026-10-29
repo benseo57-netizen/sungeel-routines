@@ -174,6 +174,7 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
 - **Outlook 폰트 통일**: Outlook에서는 맑은 고딕 하나로 통일한다. `<head>`의 `<!--[if mso]><style>…Malgun Gothic…</style><![endif]-->` 블록을 지우지 말고, 폰트를 지정하는 모든 곳에 템플릿과 같은 `font-family:…;mso-ascii-font-family:'Malgun Gothic';mso-hansi-font-family:'Malgun Gothic';mso-fareast-font-family:'Malgun Gothic';`를 넣는다.
 - **Outlook 데스크톱(Word 엔진) 규칙** — 실제 Outlook에서 깨졌던 부분이다:
   - `div`에 width/height를 주지 않는다(무시됨 → 동그라미가 가로줄, 막대가 네모로 나왔음). 크기가 필요한 장식은 템플릿처럼 `td`의 `width`/`height`/`bgcolor` 속성으로 만든다. 할 일 동그라미는 글자 `○`.
+  - **할 일 동그라미는 모든 항목이 똑같은 모양**이어야 한다(일정에서 온 항목만 타원으로 보인 적 있음). 템플릿의 `<td width="28" … font-size:18px;line-height:1.2;font-weight:700;color:…;">○</td>`를 그대로 복사하고, 바꾸는 것은 `color` 하나뿐이다(메일·마감 = `#FFB547`, 일정 = 테마 INFO색). 글자는 반드시 `○`(U+25CB) 한 글자 — `◯`·`O`·`●`·이모지·div 원 금지, font-size·width·padding도 바꾸지 않는다.
   - 테두리 색은 hex만 쓴다(`rgba` 테두리는 Outlook이 흰 선으로 그리거나 지운다). 배경색은 지금처럼 hex 먼저, rgba 나중.
   - 글자가 들어가는 칸(`td`)에 `font-size:0`을 주지 않는다(요약 바 글자가 통째로 사라졌음). `font-size:0`은 Fab Four 2단 블록의 바깥 `td`에만.
 - **용량**: Gmail은 102KB가 넘으면 본문을 자른다. HTML이 90KB를 넘지 않게, 참고 메일이 15개를 넘으면 요약을 1문장으로 줄인다.
