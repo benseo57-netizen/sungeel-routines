@@ -5,7 +5,7 @@ description: "성일하이텍 Ben의 모닝 브리핑 대시보드를 생성하�
 
 ## 목적
 Ben(ben.seo@sungeelht.com)이 매일 아침 07:05(KST)에 하루를 한눈에 파악할 수 있는
-HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 만들어 Resend로 발송한다.
+HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 만들어 Resend로 benseo57@gmail.com에 발송한다(회사 메일로는 Gmail 전달).
 
 ## 토큰/비용 원칙 (중요)
 - 이 스킬은 매일 무인으로 실행되므로 불필요한 툴 호출·재시도·장황한 텍스트를 피한다.
@@ -158,7 +158,10 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
 
 ## 7단계: 발송 (Resend)
 - 제목: `[모닝 브리핑] M월 D일 (요일) · 할 일 n · 일정 n` (실행일 기준, KST)
-- 수신: ben.seo@sungeelht.com
+- 발신(`from`): 정확히 `SungEel Morning Briefing <onboarding@resend.dev>` — 꺾쇠 `<` `>`를 그대로 쓴다. `&lt;` `&gt;`로 바꾸면 Resend가 422 오류로 거부한다. 이전 발송 기록을 조회해 주소를 찾지 않는다.
+- 수신(`to`): 정확히 `benseo57@gmail.com` 한 곳.
+  - Resend에 인증된 도메인이 없어(onboarding@resend.dev 사용) 계정 주인 주소로만 보낼 수 있다. ben.seo@sungeelht.com으로 직접 보내면 거부된다.
+  - 회사 메일(ben.seo@sungeelht.com)로는 Gmail 자동전달/필터가 넘겨준다. 루틴이 회사 주소로 따로 보내지 않는다.
 - 본문: 위 규칙으로 만든 HTML 전체를 그대로 html 파라미터에 담아 발송한다.
 - **send-email 툴은 이번 실행에서 정확히 한 번만 호출한다.** 초안/placeholder 상태의 HTML로 먼저 보내고 나중에 다시 보내는 식으로 두 번 발송하지 않는다 — HTML을 전부 완성한 뒤에만 호출한다.
 - 발송 전 스스로 재검토할 것(발송 호출 전에 끝내고, 호출 후에는 재검토하지 않는다):
