@@ -51,11 +51,11 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
   AM=$(date -u -d "$D 09:00 +0900" +%FT%H:%M:%SZ); PM=$(date -u -d "$D 15:00 +0900" +%FT%H:%M:%SZ)
   UA="sungeel-morning-briefing/1.0 github.com/benseo57-netizen/sungeel-routines"
   U="https://api.met.no/weatherapi/locationforecast/2.0/complete"
+  curl -s --max-time 25 --retry 1 -A "$UA" "$U?lat=35.8242&lon=127.1480" -o /tmp/w_jeonju.json &
+  curl -s --max-time 25 --retry 1 -A "$UA" "$U?lat=35.9050&lon=126.6150" -o /tmp/w_saemangeum.json &
   curl -s --max-time 25 --retry 1 -A "$UA" "$U?lat=37.5665&lon=126.9780" -o /tmp/w_seoul.json &
-  curl -s --max-time 25 --retry 1 -A "$UA" "$U?lat=35.7930&lon=127.1170" -o /tmp/w_jeonju.json &
-  curl -s --max-time 25 --retry 1 -A "$UA" "$U?lat=35.9680&lon=126.5850" -o /tmp/w_gunsan.json &
   wait
-  for f in seoul jeonju gunsan; do echo "== $f"; jq -c --arg s "$S" --arg e "$E" --arg am "$AM" --arg pm "$PM" '
+  for f in jeonju saemangeum seoul; do echo "== $f"; jq -c --arg s "$S" --arg e "$E" --arg am "$AM" --arg pm "$PM" '
     [.properties.timeseries[] | select(.time >= $s and .time < $e)] as $d
     | { max: ([$d[].data.instant.details.air_temperature] | max | round),
         min: ([$d[].data.instant.details.air_temperature, ($d[].data.next_6_hours.details.air_temperature_min // empty)] | min | round),
@@ -63,22 +63,22 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
         am: (([$d[] | select(.time >= $am)][0].data.next_1_hours.summary.symbol_code) // null),
         pm: (([$d[] | select(.time >= $pm)][0].data.next_1_hours.summary.symbol_code) // null) }' /tmp/w_$f.json; done
   ```
-  - 결과는 지점별 한 줄: `seoul` = 서울, `jeonju` = 전주 평화동, `gunsan` = 군산 오식도동. `max`/`min` = 최고/최저(정수 + "°"), `rain_mm` = 오늘 강수량 합계, `am`/`pm` = 09시/15시 하늘.
+  - 결과는 지점별 한 줄, 이 순서로 표시한다: `jeonju` = **전주**(기본 지점), `saemangeum` = **새만금**(새만금 산업단지), `seoul` = **서울**. `max`/`min` = 최고/최저(정수 + "°"), `rain_mm` = 오늘 강수량 합계, `am`/`pm` = 09시/15시 하늘.
   - jq가 실패하면 JSON을 직접 읽어 같은 값을 구한다(파일이 커서 `.properties.timeseries` 앞부분 24개만 본다).
   - 하늘 코드(`_day`/`_night`/`_polartwilight` 꼬리는 떼고 판단) → 한국어: `clearsky`·`fair` 맑음 / `partlycloudy` 구름조금 / `cloudy` 흐림 / `fog` 안개 / `rain`·`lightrain`·`heavyrain`·`*rainshowers*` 비 / `*thunder*` 뇌우 / `*sleet*` 진눈깨비 / `*snow*` 눈. am과 pm이 같으면 한 단어, 다르면 "오전 → 오후".
   - 강수 칸에는 강수확률 대신 "비 n mm"를 쓴다(0이면 "비 없음").
 - 실패한 지점만 "정보 없음"으로 둔다(나머지 지점은 정상 표시). 위 명령 외에 추가 재시도는 하지 않는다. 세 지점 모두 실패하면 날씨 값은 "정보 없음"으로 표시하고 맑음 테마로 진행한다(나머지 섹션은 정상 진행).
 
 ### 오늘의 테마 결정 (맑음 / 흐림 / 비 / 눈 중 하나)
-- **기준 지역**: 오늘 일정 제목의 `[지역]` 접두어에 `[전주]`가 있으면 전주 평화동, `[군산]`이 있으면 군산 오식도동, 그 외(없음·서울·기타 지역)는 서울.
+- **기준 지역은 항상 전주**다(일정 장소와 상관없이 고정). 테마는 전주 값으로만 정한다.
 - **우선순위(위에서부터 처음 맞는 것)**:
   1. am·pm 중 하나라도 `snow`·`sleet` 포함 → **눈**
   2. am·pm 중 하나라도 `rain`·`thunder` 포함, 또는 오늘 강수량 `rain_mm` 1.0mm 이상 → **비**
   3. am·pm 중 하나라도 `cloudy`·`fog` → **흐림** (`partlycloudy`는 흐림이 아님)
   4. 그 외(`clearsky`·`fair`·`partlycloudy`) → **맑음**
 - 날씨를 못 가져왔으면 **맑음**.
-- 날씨 타일의 큰 숫자·문구는 기준 지역 값으로 채우고, 나머지 두 지점은 아래 두 줄에 넣는다(타일 제목 "OO · 오늘 예보"의 지역명도 기준 지역으로 바꾼다).
-- HERO 문장 끝에 날씨 한 문장을 붙인다. 테마에 맞는 실용적인 한마디(예: 맑음 "서울은 맑고 15°까지 올라요." / 흐림 "서울은 종일 흐리고 12°예요." / 비 "서울은 오전에 비, 우산 챙기세요." / 눈 "서울에 눈 소식, 출근길 미끄럼 주의.").
+- 날씨 타일의 큰 숫자·문구는 **전주** 값으로 채우고, 아래 두 줄은 **새만금 → 서울** 순서로 넣는다(타일 제목은 "전주 · 오늘 예보").
+- HERO 문장 끝에 날씨 한 문장을 붙인다. 테마에 맞는 실용적인 한마디(전주 기준. 예: 맑음 "전주는 맑고 17°까지 올라요." / 흐림 "전주는 종일 흐리고 12°예요." / 비 "전주는 오전에 비, 우산 챙기세요." / 눈 "전주에 눈 소식, 출근길 미끄럼 주의.").
 
 ## 3단계: 일정 (Google Calendar — 개인 + 팀 캘린더, 메모 포함)
 - 팀 일정은 개인 기본 캘린더가 아니라 **별도 팀 캘린더**에 올라간다. 기본 캘린더만 조회하면 팀 일정이 통째로 빠지므로 반드시 둘 다 조회한다.
@@ -186,7 +186,7 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
   - 회사 메일(ben.seo@sungeelht.com)로는 Gmail 자동전달/필터가 넘겨준다. 루틴이 회사 주소로 따로 보내지 않는다.
 - 본문: 위 규칙으로 만든 HTML 전체를 그대로 html 파라미터에 담아 발송한다.
 - **send-email 툴은 이번 실행에서 정확히 한 번만 호출한다.** 초안/placeholder 상태의 HTML로 먼저 보내고 나중에 다시 보내는 식으로 두 번 발송하지 않는다 — HTML을 전부 완성한 뒤에만 호출한다.
-- 발송 전 스스로 재검토할 것(발송 호출 전에 끝내고, 호출 후에는 재검토하지 않는다):
+- 발송 전 스스로 재검토할 것(발송 호출 전에 끝내고, 호출 후에는 재검토하지 않는다). 메일 맨 위 "웹앱에서 보기" 링크(https://claude.ai/artifact/96tgki5qiP6uc3os1aDctH)는 템플릿 그대로 둔다:
   - template.html 구조를 따랐는지, 템플릿 샘플 텍스트가 남아있지 않은지, `__XXX__` 토큰 문자열이 하나도 남지 않았는지
   - 2단계 규칙대로 테마를 골랐고 그 테마 값으로 치환했는지, HERO 날씨 한마디가 테마와 맞는지
   - 팀 캘린더 일정과 메모가 반영됐는지(메모 없는 일정에 빈 메모 줄이 남지 않았는지)
@@ -194,6 +194,29 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
   - `<style>`/flex/grid를 안 썼는지, 2단 블록이 Fab Four div + mso 고스트 테이블 구조인지
   - 요약이 2문장을 넘지 않는지, 수신 시각이 다 표기됐는지, 숫자(프리헤더·HERO·할 일·메일 그룹)가 실제와 일치하는지
 
+## 8단계: 구글 시트에 저장 (웹앱용)
+발송이 끝나면(또는 발송이 실패해도) 오늘 브리핑을 웹앱용 JSON 한 줄로 저장한다. 웹앱(https://claude.ai/artifact/96tgki5qiP6uc3os1aDctH)이 이 시트를 읽어 날짜별로 보여준다.
+- 시트: "모닝 브리핑 DB", spreadsheetId `1zryRTw55FBuubXkyOk5qO4hRQZqZg6aa7Eh7YJQXn0g`, 범위 `Sheet1!A:C`
+- Google Sheets `append_values`를 **한 번** 호출: `values = [["YYYY-MM-DD", "YYYY-MM-DD HH:MM", "<JSON 문자열>"]]`. 같은 날짜를 다시 실행하면 그냥 한 줄 더 추가한다(웹앱은 같은 날짜 중 마지막 줄을 쓴다).
+- JSON은 아래 형태를 **정확히** 따른다(키 이름 변경 금지, 값은 HTML 없는 순수 텍스트, 이메일에 쓴 내용과 동일):
+  ```
+  {"v":1,"date":"2026-10-30","weekday":"금","generated":"07:06","theme":"sun|cloud|rain|snow",
+   "headline":"놓치면 안 되는 일 5건, 일정 2건.","weather_line":"전주는 맑고 17°까지 올라요.",
+   "weather":{"ok":true,"places":[{"name":"전주","max":17,"min":5,"sky":"맑음 → 구름","rain":"비 없음"},{"name":"새만금",...},{"name":"서울",...}]},
+   "counts":{"todo":5,"mail":12,"event":2,"research":2},
+   "todos":[{"title":"...","due":"10/30 마감 또는 null","meta":"메일 · 이수진 요청","kind":"mail|event"}],
+   "next_event":{"time":"09:00","title":"...","meta":"Teams 컨콜 · 10:00까지"} 또는 null,
+   "mail_range":"어제 17:00 이후 12통",
+   "mail_action":[{"from":"회사 · 이름","time":"어제 19:26","subject":"...","summary":"...","action":"..."}],
+   "mail_ref":[{"from":"...","time":"...","subject":"...","summary":"..."}],
+   "events":[{"start":"09:00","end":"10:00","title":"...","meta":"장소 · 캘린더","memo":"메모 요약 또는 빈 문자열","research":true}],
+   "tomorrow":["18:00 dk파트너스 (잠정) · 분당"],
+   "research":[{"label":"오늘 09:00 · 일정 제목","headline":"...","facts":["...","[확인 필요] ..."],"questions":["..."],"sources":[{"name":"딜사이트","url":"https://..."}]}]}
+  ```
+  - 날씨를 못 가져온 지점은 `max`/`min`을 `null`, `sky`를 `"정보 없음"`으로.
+  - "확인 필요" 표시는 해당 문장 맨 앞에 `[확인 필요] `를 붙인다(웹앱이 빨간 태그로 바꿔 보여준다).
+  - JSON은 한 줄 문자열로 직렬화한다(셀 하나, 5만 자 이하).
+- 저장 실패는 브리핑 전체를 실패시키지 않는다. 실패하면 한 번만 다시 시도하고 넘어간다.
 ## 무인 실행 시 주의
 - 이 스킬이 루틴(무인 스케줄)으로 실행될 때는 사용자에게 아무것도 묻지 않고
   위 절차를 끝까지 수행한 뒤 이메일 발송까지 완료한다.
