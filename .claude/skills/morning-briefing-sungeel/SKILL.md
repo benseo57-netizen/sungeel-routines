@@ -43,15 +43,20 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
 
 ## 2단계: 날씨 (Open-Meteo API) + 오늘의 테마 결정
 - **현재기온이 아니라 "오늘 예보"를 쓴다.**
-- **웹검색으로 날씨를 찾지 않는다.** 웹검색은 미국 기준이라 한국 동네 단위 예보를 못 찾는다(실제로 실패한 적 있음). 대신 무료·무인증 Open-Meteo API를 `Bash`로 **한 번** 호출해 세 지점을 함께 받는다:
+- **웹검색으로 날씨를 찾지 않는다.** 웹검색은 미국 기준이라 한국 동네 단위 예보를 못 찾는다(실제로 실패한 적 있음). 대신 무료·무인증 Open-Meteo API를 `Bash` 한 번으로 **지점별 3개 요청을 동시에** 보낸다. (세 지점을 한 URL에 묶으면 클라우드 프록시에서 매번 시간 초과가 난다 — 반드시 나눠서.)
   ```
-  curl -s --max-time 20 "https://api.open-meteo.com/v1/forecast?latitude=37.5665,35.7930,35.9680&longitude=126.9780,127.1170,126.5850&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&hourly=weather_code&timezone=Asia%2FSeoul&forecast_days=1"
+  Q="daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&hourly=weather_code&timezone=Asia%2FSeoul&forecast_days=1"
+  U="https://api.open-meteo.com/v1/forecast"
+  curl -s --max-time 25 --retry 1 "$U?latitude=37.5665&longitude=126.9780&$Q" -o /tmp/w_seoul.json &
+  curl -s --max-time 25 --retry 1 "$U?latitude=35.7930&longitude=127.1170&$Q" -o /tmp/w_jeonju.json &
+  curl -s --max-time 25 --retry 1 "$U?latitude=35.9680&longitude=126.5850&$Q" -o /tmp/w_gunsan.json &
+  wait; cat /tmp/w_seoul.json; echo; cat /tmp/w_jeonju.json; echo; cat /tmp/w_gunsan.json
   ```
-  - 응답은 JSON 배열이며 순서는 **[0] 서울, [1] 전주 평화동, [2] 군산 오식도동**.
+  - 파일별: `w_seoul` = 서울, `w_jeonju` = 전주 평화동, `w_gunsan` = 군산 오식도동. 각각 JSON 객체 하나.
   - 최고 = `daily.temperature_2m_max[0]`, 최저 = `daily.temperature_2m_min[0]` (둘 다 반올림 정수 + "°"), 강수 = `daily.precipitation_probability_max[0]` + "%".
   - 오전 하늘 = `hourly.weather_code[9]`(09시), 오후 하늘 = `hourly.weather_code[15]`(15시). 같으면 한 단어만, 다르면 "오전 → 오후".
   - WMO 날씨 코드 → 한국어: 0·1 맑음 / 2 구름조금 / 3 흐림 / 45·48 안개 / 51–57 이슬비 / 61–67·80–82 비 / 71–77·85–86 눈 / 95–99 뇌우
-- API가 실패하면(네트워크 오류·빈 응답·JSON 아님) 재시도하지 말고, 날씨 값은 "정보 없음"으로 표시하고 맑음 테마로 진행한다(나머지 섹션은 정상 진행).
+- 실패한 지점만 "정보 없음"으로 둔다(나머지 지점은 정상 표시). 위 명령 외에 추가 재시도는 하지 않는다. 세 지점 모두 실패하면(네트워크 오류·빈 응답·JSON 아님), 날씨 값은 "정보 없음"으로 표시하고 맑음 테마로 진행한다(나머지 섹션은 정상 진행).
 
 ### 오늘의 테마 결정 (맑음 / 흐림 / 비 / 눈 중 하나)
 - **기준 지역**: 오늘 일정 제목의 `[지역]` 접두어에 `[전주]`가 있으면 전주 평화동, `[군산]`이 있으면 군산 오식도동, 그 외(없음·서울·기타 지역)는 서울.
@@ -100,7 +105,7 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
 
 ## 5단계: 대시보드 구성 (순서 고정)
 1. **HERO** (상자 없음): "O요일 아침 브리핑" · 큰 날짜 · 한 문장(놓치면 안 되는 일 n건, 일정 n건 + 날씨 한마디)
-2. **요약 바** (리퀴드 글래스 캡슐, 링크 없음): "할 일 n · 메일 n · 일정 n · 사전 조사 n" — 실제 개수(메일 = 수집한 메일 총수, 일정 = 오늘 일정 수).
+2. **요약 바** (리퀴드 글래스 캡슐): "할 일 n · 메일 n · 일정 n · 사전 조사 n" — 실제 개수(메일 = 수집한 메일 총수, 일정 = 오늘 일정 수). 템플릿처럼 각 칸의 글자를 `[if mso]` 조건부 링크로 감싸 Outlook classic에서만 섹션 이동이 되게 한다(그룹웨어는 내부 링크를 새 창으로 열어서 일반 링크 금지).
 3. **벤토** (넓은 화면 2단 / 좁은 화면 1단)
    - 왼쪽 큰 타일 **오늘 할 일** 3~7개(중요도순): 답장·처리 필요 메일의 액션 + 오늘 일정 준비 + 메모의 준비사항. 각 항목 = 제목 한 줄 + 보조줄(마감·출처·담당). 동그라미 색: 메일/마감 = 앰버 #FFB547, 일정 = 테마 INFO색. 오늘·내일 마감은 보조줄에 빨강 "MM/DD 마감".
    - 오른쪽 위 **날씨 타일**(글래스, 테마 틴트), 오른쪽 아래 **다음 일정 타일**(실행 시각 이후 첫 일정. 없으면 "오늘 남은 일정 없음").
@@ -146,7 +151,7 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
 - **배지·대문자 영문 라벨 금지**(예: "01 · FOCUS", 알약 모양 "액션" 배지). 상태는 색(앰버=처리, 빨강=마감, INFO=일정)과 동그라미·세로 막대로만 표현한다. 이모지 아이콘 금지.
 - **글자색**: 제목 #F5F5F7, 본문 #E5E5EA/#C7C7CC, 보조 #A1A1A6, 메타 #8E8E93(이보다 어두운 회색 금지 — 어두운 배경 대비 4.5:1). 강조색은 앰버 #FFB547 하나, 빨강 #FF6B5E는 마감·확인 필요에만.
 - **크기 위계**: 날짜 44px, 섹션 제목 24px, 카드 제목 18~20px, 본문 15px, 보조 13~14px. 13px 미만 글자 금지.
-- **링크는 외부 URL(사전 조사 출처)만.** 메일 안에서 섹션으로 이동하는 링크(`href="#..."`)·`<a name>` 앵커는 쓰지 않는다. 그룹웨어·Outlook이 이런 링크를 새 창으로 열어버려 오히려 불편하다.
+- **링크는 외부 URL(사전 조사 출처)과 Outlook 전용 섹션 이동만.** 섹션 이동 링크(`href="#..."`)와 도착점(`<a name="focus|mail|schedule|research">`)은 템플릿처럼 반드시 `<!--[if mso]>…<![endif]-->` 안에만 둔다. 그룹웨어는 일반 내부 링크를 새 창으로 열어버린다.
 
 ### 깨지기 쉬운 부분 (이메일 클라이언트 호환 — 수정하지 말 것)
 - **`<style>`·미디어쿼리·flex·grid 사용 금지.** 사내 그룹웨어 모바일이 `<head>`/`<style>`을 통째로 제거한다. 모든 스타일은 인라인 + HTML 속성으로만 준다.
@@ -155,7 +160,7 @@ HTML 대시보드(다크 · 벤토 · 리퀴드 글래스, 날씨별 테마)를 
   인 `<div>`로 만들고, 부모 `<td>`에 `font-size:0; line-height:0;`. 두 `<div>` 사이에는 줄바꿈·공백을 넣지 않는다(`</div><!--[if mso]>…<![endif]--><div`).
 - **Outlook 데스크톱**은 `<!--[if mso]>` 고스트 테이블이 2단을 대신 만든다. mso 조건부 주석을 지우지 않는다.
 - **rgba·gradient 앞에는 항상 hex fallback**(`background-color:#hex;background-color:rgba(...)`)과 `bgcolor` 속성을 둔다. 이 순서를 바꾸지 않는다.
-- **Outlook 폰트/한글 간격 버그 대응**: 폰트를 지정하는 모든 곳에 템플릿과 같은 `font-family:…;mso-ascii-font-family:'Segoe UI';mso-hansi-font-family:'Segoe UI';mso-fareast-font-family:'Malgun Gothic';`를 넣는다.
+- **Outlook 폰트 통일**: Outlook에서는 맑은 고딕 하나로 통일한다. `<head>`의 `<!--[if mso]><style>…Malgun Gothic…</style><![endif]-->` 블록을 지우지 말고, 폰트를 지정하는 모든 곳에 템플릿과 같은 `font-family:…;mso-ascii-font-family:'Malgun Gothic';mso-hansi-font-family:'Malgun Gothic';mso-fareast-font-family:'Malgun Gothic';`를 넣는다.
 - **Outlook 데스크톱(Word 엔진) 규칙** — 실제 Outlook에서 깨졌던 부분이다:
   - `div`에 width/height를 주지 않는다(무시됨 → 동그라미가 가로줄, 막대가 네모로 나왔음). 크기가 필요한 장식은 템플릿처럼 `td`의 `width`/`height`/`bgcolor` 속성으로 만든다. 할 일 동그라미는 글자 `○`.
   - 테두리 색은 hex만 쓴다(`rgba` 테두리는 Outlook이 흰 선으로 그리거나 지운다). 배경색은 지금처럼 hex 먼저, rgba 나중.
