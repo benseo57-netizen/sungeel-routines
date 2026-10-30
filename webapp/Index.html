@@ -343,64 +343,88 @@ body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-
   function showState(title, text, button) {
     view.replaceChildren(h("div", { class: "state glass" }, h("h2", { text: title }), h("p", { text }), button || null));
   }
-  // ── 데이터: Apps Script 서버가 PIN을 확인한 뒤에만 보내준다 ──
-  let pinValue = "";
+  // ── 데이터: Apps Script 서버가 PIN(또는 같은 탭의 30분 세션)을 확인한 뒤에만 보내준다 ──
+  const SS_KEY = "mb_session";
+  let pinValue = "", session = "";
+  try { session = sessionStorage.getItem(SS_KEY) || ""; } catch (e) {}
+  const auth = () => session ? { token: session } : { pin: pinValue };
+  function saveSession(tk) {
+    session = tk || "";
+    try { if (session) sessionStorage.setItem(SS_KEY, session); else sessionStorage.removeItem(SS_KEY); } catch (e) {}
+  }
+  function needPin(text) {
+    saveSession(""); typed = ""; paint();
+    $("#gate").hidden = false;
+    const msg = $("#gateMsg"); msg.className = "gate-msg"; msg.textContent = text || "";
+  }
+  function apply(res, keepIdx) {
+    saveSession(res.token);
+    $("#gate").hidden = true;
+    briefs = res.briefs || [];
+    if (!briefs.length) showState("아직 저장된 브리핑이 없어요", "매일 아침 07:05 루틴이 돌면 이곳에 날짜별로 쌓입니다.");
+    else { idx = keepIdx ? Math.min(idx, briefs.length - 1) : 0; fillDates(); render(); }
+    if (res.firedAt && !busy && stamp(briefs) < res.firedAt) startWatch(res.firedAt);
+  }
   function load(fresh) {
     if (fresh) showState("새로 불러오는 중", "구글 시트에서 최신 브리핑을 읽고 있어요.");
     google.script.run
-      .withSuccessHandler((list) => {
-        $("#gate").hidden = true;
-        briefs = list || [];
-        if (!briefs.length) return showState("아직 저장된 브리핑이 없어요", "매일 아침 07:05 루틴이 돌면 이곳에 날짜별로 쌓입니다.");
-        idx = fresh ? Math.min(idx, briefs.length - 1) : 0;
-        fillDates(); render();
-      })
+      .withSuccessHandler((res) => apply(res, fresh))
       .withFailureHandler((e) => {
         const m = String((e && e.message) || e);
+        if (/NEED_PIN/.test(m)) return needPin("PIN을 입력해 주세요");
         if (/WRONG|LOCKED|NO_PIN/.test(m)) return pinFail(m);
         showState("브리핑을 불러오지 못했어요", "잠시 후 새로고침해 주세요. (" + m + ")");
       })
-      .getBriefings(pinValue);
+      .getBriefings(auth());
   }
 
-  // ── 새로고침: 루틴을 지금 실행하고, 새 브리핑이 시트에 들어오면 자동으로 바꿔 보여준다 ──
-  let busy = false, pollTimer = 0, toastTimer = 0;
+  // ── 새로고침: 루틴을 지금 실행하고, 새 브리핑이 시트에 들어오면 자동으로 바꿔 보여준다.
+  //    누른 시각은 구글 서버가 30분 동안 기억해서, 앱을 나갔다 와도 이어서 기다린다. ──
+  let busy = false, pollTimer = 0, toastTimer = 0, firedAt = "";
   function toast(text, ms) {
     const el = $("#toast"); el.textContent = text; el.hidden = false;
     clearTimeout(toastTimer); if (ms) toastTimer = setTimeout(() => { el.hidden = true; }, ms);
   }
   const stamp = (list) => (list && list[0]) ? list[0].date + " " + (list[0].generated || "") : "";
   function setRefreshing(on) { document.querySelectorAll(".refresh-ctl").forEach((b) => b.classList.toggle("spin", on)); }
+  function startWatch(at) {
+    firedAt = at; busy = true; setRefreshing(true);
+    toast("새로고침 진행 중 (" + at.slice(11) + " 시작) · 끝나면 자동으로 바뀌어요");
+    clearInterval(pollTimer); pollTimer = setInterval(check, 60000);
+  }
+  function stopWatch() { clearInterval(pollTimer); busy = false; setRefreshing(false); }
   function refreshNow() {
-    if (busy) return toast("브리핑을 만드는 중이에요. 끝나면 자동으로 바뀝니다.", 3000);
-    busy = true; setRefreshing(true);
-    toast("브리핑을 새로 만드는 중… 5~10분 걸려요");
-    const before = stamp(briefs);
+    if (busy) return toast("새로고침 진행 중이에요 (" + (firedAt.slice(11) || "방금") + " 시작). 끝나면 자동으로 바뀝니다.", 3000);
+    busy = true; setRefreshing(true); toast("새로고침 요청 중…");
     google.script.run
-      .withSuccessHandler(() => { const t0 = Date.now(); pollTimer = setInterval(() => check(before, t0), 60000); })
+      .withSuccessHandler((r) => startWatch(r.firedAt))
       .withFailureHandler((e) => {
-        busy = false; setRefreshing(false);
+        stopWatch();
         const m = String((e && e.message) || e);
         if (/COOLDOWN/.test(m)) toast("방금(" + m.split(":").slice(1).join(":") + ") 실행했어요. 10분 뒤에 다시 누를 수 있어요.", 5000);
         else if (/NO_TOKEN/.test(m)) toast("루틴 토큰이 설정되지 않았어요 (스크립트 속성 ROUTINE_TOKEN)", 6000);
         else if (/FIRE_FAILED:40[13]/.test(m)) toast("루틴 토큰이 맞지 않아요. 새 토큰을 넣어 주세요.", 6000);
-        else if (/WRONG|LOCKED/.test(m)) toast("PIN 확인에 실패했어요. 새로고침(F5) 후 다시 들어와 주세요.", 6000);
+        else if (/FIRE_FAILED:429/.test(m)) toast("루틴 실행 한도(시간당)에 걸렸어요. 잠시 후 다시 눌러 주세요.", 6000);
+        else if (/NEED_PIN/.test(m)) needPin("30분이 지나 PIN을 다시 입력해 주세요");
         else toast("루틴을 실행하지 못했어요: " + m, 8000);
       })
-      .fireRoutine(pinValue);
+      .fireRoutine(auth());
   }
-  function check(before, t0) {
-    google.script.run.withSuccessHandler((list) => {
-      if (stamp(list) !== before) {
-        clearInterval(pollTimer); busy = false;
-        briefs = list; idx = 0; fillDates(); render(); setRefreshing(false);
+  function check() {
+    if (!busy) return;
+    google.script.run.withSuccessHandler((res) => {
+      saveSession(res.token);
+      if (stamp(res.briefs) >= firedAt) {
+        stopWatch(); briefs = res.briefs; idx = 0; fillDates(); render();
         toast("최신 브리핑으로 바뀌었어요", 4000);
-      } else if (Date.now() - t0 > 20 * 60000) {
-        clearInterval(pollTimer); busy = false; setRefreshing(false);
-        toast("20분이 지나도 새 브리핑이 없어요. 잠시 후 다시 확인해 주세요.", 8000);
+      } else if (!res.firedAt) {
+        stopWatch();
+        toast("30분이 지나도 새 브리핑이 없어요. 루틴이 중간에 멈췄을 수 있어요(사용량 한도 등).", 9000);
       }
-    }).withFailureHandler(() => {}).getBriefings(pinValue);
+    }).withFailureHandler(() => {}).getBriefings(auth());
   }
+  // 다른 앱을 보다 돌아오면 바로 한 번 확인
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && busy) check(); });
   // ── PIN 키패드 ──
   let typed = "";
   const dots = () => document.querySelectorAll("#dots i");
@@ -410,7 +434,7 @@ body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-
     if (k === "del") typed = typed.slice(0, -1);
     else if (/^\d$/.test(k) && typed.length < 4) typed += k;
     paint();
-    if (typed.length === 4) { pinValue = typed; $("#gateMsg").className = "gate-msg"; $("#gateMsg").textContent = "확인 중…"; load(false); }
+    if (typed.length === 4) { pinValue = typed; saveSession(""); $("#gateMsg").className = "gate-msg"; $("#gateMsg").textContent = "확인 중…"; load(false); }
   }
   function pinFail(m) {
     typed = ""; paint();
@@ -667,8 +691,9 @@ body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-
   }
 
   $("#refreshD").onclick = refreshNow;
-  // ── 시작: PIN 화면이 먼저 뜬다 ──
+  // ── 시작: 같은 탭의 30분 세션이 있으면 PIN 없이 바로 열고, 없으면 PIN 화면 ──
   paint();
+  if (session) { $("#gateMsg").textContent = "확인 중…"; load(false); }
 })();
 </script>
 </body>
