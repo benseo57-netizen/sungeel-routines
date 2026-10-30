@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<title>성일 모닝 브리핑</title>
+<meta charset="utf-8"><base target="_top">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 데스크톱 = 왼쪽 고정 글래스 사이드바(날짜·섹션 이동) + 오른쪽 벤토/목록 본문.
+   모바일 = 상단 고정 날짜 바 + 하단 고정 글래스 탭 바. 배경은 그날 날씨 테마의 빛과 입자(비/눈). */
+:root {
+  color-scheme: dark;
+  --ink: #F5F5F7;          /* 제목 */
+  --ink-2: #D1D1D6;        /* 본문 */
+  --ink-3: #A1A1A6;        /* 보조 */
+  --ink-4: #8E8E93;        /* 메타 */
+  --ground: #0B0A09;       /* 페이지 바탕 (테마가 바꿈) */
+  --surface: rgba(255,255,255,0.055);
+  --hairline: rgba(255,255,255,0.08);
+  --glass: rgba(28,26,24,0.55);
+  --glass-edge: rgba(255,255,255,0.16);
+  --glass-shine: rgba(255,255,255,0.45);
+  --amber: #FFB547;        /* 처리할 것 */
+  --red: #FF6B5E;          /* 마감·확인 필요 */
+  --info: #FFD08A;         /* 테마 보조색 (테마가 바꿈) */
+  --light-a: rgba(255,170,60,0.50);
+  --light-b: rgba(255,120,40,0.14);
+  --font: "IBM Plex Sans KR", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-lg: 24px;
+  --r-md: 16px;
+}
+:root[data-wx="cloud"] { --ground:#0B0C0E; --info:#C5D0DE; --light-a:rgba(150,165,190,0.40); --light-b:rgba(120,130,150,0.12); --glass:rgba(26,28,32,0.55); }
+:root[data-wx="rain"]  { --ground:#070A10; --info:#7CC4FF; --light-a:rgba(50,120,230,0.48); --light-b:rgba(30,150,200,0.14); --glass:rgba(16,24,36,0.55); }
+:root[data-wx="snow"]  { --ground:#0A0D14; --info:#BFE0FF; --light-a:rgba(190,215,255,0.42); --light-b:rgba(140,180,240,0.14); --glass:rgba(22,30,44,0.55); }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink-2);
+  font: 15px/1.6 var(--font); -webkit-font-smoothing: antialiased;
+}
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:30; background:var(--ground); }
+#sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.atmo { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 85% -10%, var(--light-a) 0%, var(--light-b) 38%, transparent 68%),
+    radial-gradient(80% 50% at 0% 105%, var(--light-b) 0%, transparent 60%);
+  transition: background .6s ease; }
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-shine), 0 18px 50px rgba(0,0,0,0.35);
+}
+
+/* ── 앱 골격 ── */
+.app { position: relative; z-index: 1; display: grid; grid-template-columns: 264px minmax(0,1fr); min-height: 100%; }
+.side {
+  position: sticky; top: env(safe-area-inset-top,0px); align-self: start;
+  height: calc(100vh - env(safe-area-inset-top,0px));
+  padding: 20px 0 20px max(16px, env(safe-area-inset-left,0px));
+}
+.side-inner { height: 100%; border-radius: var(--r-lg); padding: 22px 16px; display: flex; flex-direction: column; gap: 22px; overflow-y: auto; }
+.brand { font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: .02em; padding: 0 6px; }
+.brand b { color: var(--ink); font-weight: 700; }
+
+.datebox { display: grid; gap: 10px; }
+.datenav { display: flex; align-items: center; gap: 6px; }
+.iconbtn {
+  width: 36px; height: 36px; flex: none; border-radius: 12px; border: 1px solid var(--glass-edge);
+  background: rgba(255,255,255,0.06); color: var(--ink); font: 600 16px var(--font); cursor: pointer;
+}
+.iconbtn:disabled { opacity: .3; cursor: default; }
+.iconbtn:focus-visible, .navlink:focus-visible, .datesel:focus-visible, .tab:focus-visible, .btn:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.datesel {
+  flex: 1; min-width: 0; height: 36px; border-radius: 12px; border: 1px solid var(--glass-edge);
+  background: rgba(255,255,255,0.06); color: var(--ink); font: 600 14px var(--font); padding: 0 10px;
+}
+.datesel option { background: #1c1c1e; color: var(--ink); }
+
+.nav { display: grid; gap: 4px; }
+.navlink {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 12px; border-radius: 12px; border: 0; background: transparent; cursor: pointer;
+  color: var(--ink-2); font: 600 15px var(--font); text-align: left;
+}
+.navlink .n { font: 600 13px var(--mono); color: var(--ink-4); }
+.navlink:hover { background: rgba(255,255,255,0.06); }
+.navlink.on { background: var(--ink); color: #111113; }
+.navlink.on .n { color: #55555a; }
+
+.side-wx { margin-top: auto; padding: 14px; border-radius: var(--r-md); background: rgba(255,255,255,0.05); border: 1px solid var(--hairline); }
+.side-wx .k { font-size: 12px; color: var(--ink-3); }
+.side-wx .v { font-size: 28px; font-weight: 600; color: var(--ink); line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+.main { min-width: 0; padding-block: 40px 96px; padding-left: 32px; padding-right: max(32px, env(safe-area-inset-right,0px)); }
+.wrap { max-width: 900px; display: grid; gap: 40px; }
+
+/* ── 모바일 상단/하단 바 ── */
+.mtop, .mtabs { display: none; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .main { padding-block: 16px 120px; padding-left: max(16px, env(safe-area-inset-left,0px)); padding-right: max(16px, env(safe-area-inset-right,0px)); }
+  .mtop {
+    display: flex; position: sticky; top: env(safe-area-inset-top,0px); z-index: 20; gap: 8px; align-items: center;
+    padding: 10px max(16px, env(safe-area-inset-right,0px)) 10px max(16px, env(safe-area-inset-left,0px));
+    border-width: 0 0 1px; border-radius: 0; box-shadow: none;
+  }
+  .mtabs {
+    display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 4px;
+    position: fixed; z-index: 20; left: max(12px, env(safe-area-inset-left,0px)); right: max(12px, env(safe-area-inset-right,0px));
+    bottom: calc(12px + env(safe-area-inset-bottom,0px)); padding: 6px; border-radius: 22px;
+  }
+  .tab { min-height: 48px; border: 0; border-radius: 16px; background: transparent; color: var(--ink-2);
+    font: 600 12px/1.25 var(--font); cursor: pointer; display: grid; place-content: center; gap: 2px; }
+  .tab .n { font: 600 15px var(--mono); color: var(--ink); }
+  .tab.on { background: var(--ink); color: #111113; }
+  .tab.on .n { color: #111113; }
+  .wrap { gap: 32px; }
+}
+
+/* ── 본문 ── */
+.hero { display: grid; gap: 10px; }
+.hero .dow { font-size: 15px; font-weight: 600; color: var(--ink-3); }
+.hero h1 { margin: 0; font-size: clamp(40px, 7vw, 60px); line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); text-wrap: balance; }
+.hero p { margin: 4px 0 0; font-size: 18px; color: var(--ink-2); max-width: 60ch; text-wrap: pretty; }
+.hero p b { color: var(--amber); }
+.hero .gen { font-size: 13px; color: var(--ink-4); }
+
+.bento { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap: 14px; }
+.stack { display: grid; gap: 14px; align-content: start; }
+@media (max-width: 700px) { .bento { grid-template-columns: 1fr; } }
+
+.panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 20px; min-width: 0;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.panel h3 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--ink); }
+.panel h3 .n { color: var(--ink-4); font-weight: 600; margin-left: 4px; }
+
+.todo { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.todo:last-child { border-bottom: 0; }
+/* 동그라미는 SVG로 그린다: CSS 테두리 원은 폰의 소수 픽셀 배율에서 항목마다 굵기·모양이 달라 보인다 */
+.ring { width: 18px; height: 18px; margin-top: 3px; display: block; color: var(--amber); overflow: visible; }
+.ring.is-event { color: var(--info); }
+.todo .t { color: var(--ink); font-weight: 500; }
+.meta { font-size: 13px; color: var(--ink-3); }
+.due { color: var(--red); font-weight: 600; }
+
+.wx { border-radius: var(--r-lg); padding: 20px; }
+.wx .k { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.wx .big { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.wx .deg { font-size: 56px; line-height: 1; font-weight: 400; letter-spacing: -0.04em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wx .sky { text-align: right; }
+.wx .sky b { display: block; color: var(--ink); font-size: 15px; }
+.wx .rows { margin-top: 14px; border-top: 1px solid var(--glass-edge); padding-top: 8px; display: grid; gap: 4px; }
+.wx .row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.wx .row span:last-child { color: var(--ink-3); font-variant-numeric: tabular-nums; text-align: right; }
+
+.next .when { font: 600 26px var(--mono); color: var(--ink); letter-spacing: -0.02em; }
+.next .row { display: flex; gap: 14px; align-items: baseline; margin-top: 4px; }
+
+.sec { display: grid; gap: 14px; scroll-margin-top: 80px; }
+.sec-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sec-h h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+.sec-h .sub { font-size: 14px; color: var(--ink-4); font-weight: 600; }
+
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; align-items: start; }
+@media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+.grp-h { font-size: 14px; font-weight: 700; margin: 0 0 8px 4px; }
+.grp-h.act { color: var(--amber); }
+.grp-h .n { color: var(--ink-4); margin-left: 4px; }
+.mail { padding: 14px 0; border-bottom: 1px solid var(--hairline); display: grid; gap: 3px; }
+.mail:last-child { border-bottom: 0; }
+.mail .top { display: flex; justify-content: space-between; gap: 10px; }
+.mail .from { color: var(--ink); font-weight: 600; min-width: 0; }
+.mail .time { font: 500 12px var(--mono); color: var(--ink-4); white-space: nowrap; }
+.mail .subj { color: var(--ink-2); font-weight: 500; }
+.mail .sum { font-size: 14px; color: var(--ink-3); }
+.mail .act { font-size: 14px; color: var(--amber); font-weight: 600; margin-top: 4px; }
+.panel.list { padding-block: 4px; }
+
+.ev { display: grid; grid-template-columns: 62px 4px minmax(0,1fr); gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--hairline); }
+.ev:last-child { border-bottom: 0; }
+.ev .s { font: 600 16px var(--mono); color: var(--ink); }
+.ev .e { font: 500 13px var(--mono); color: var(--ink-4); }
+.ev .bar { border-radius: 4px; background: var(--info); }
+.ev .bar.rs { background: var(--amber); }
+.ev .t { color: var(--ink); font-weight: 600; font-size: 16px; }
+.memo { margin-top: 8px; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.05); font-size: 14px; color: var(--ink-2); }
+.tmr { font-size: 13px; color: var(--ink-4); padding: 0 4px; }
+
+.rs-card { display: grid; gap: 8px; }
+.rs-card .lb { font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.rs-card h4 { margin: 0; font-size: 18px; line-height: 1.4; color: var(--ink); text-wrap: balance; }
+.rs-card ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.rs-card .q { font-size: 13px; font-weight: 700; color: var(--amber); margin-top: 6px; }
+.chk { display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 6px; background: rgba(255,107,94,0.16); color: var(--red); font-size: 12px; font-weight: 700; }
+.src { font-size: 13px; color: var(--ink-4); }
+.src a { color: var(--info); text-decoration: none; }
+.src a:hover { text-decoration: underline; }
+.none { color: var(--ink-4); font-size: 14px; padding: 8px 0; }
+
+.cal svg { width: 18px; height: 18px; display: block; margin: auto; }
+.cal[aria-expanded="true"] { background: var(--ink); color: #111113; }
+.calpop { position: fixed; z-index: 40; width: 284px; border-radius: 20px; padding: 14px; }
+.cal-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 700; color: var(--ink); }
+.cal-g { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 4px; text-align: center; }
+.cal-w { font-size: 11px; color: var(--ink-4); padding: 4px 0; }
+.cal-d { height: 34px; border-radius: 10px; border: 0; background: transparent; color: var(--ink-4); font: 500 13px var(--mono); }
+.cal-d.has { color: var(--ink); background: rgba(255,255,255,0.08); cursor: pointer; }
+.cal-d.has:hover { background: rgba(255,255,255,0.16); }
+.cal-d.today { box-shadow: inset 0 0 0 1px var(--info); }
+.cal-d.sel { background: var(--ink); color: #111113; }
+.cal-d:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+
+.state { max-width: 520px; display: grid; gap: 12px; padding: 24px; border-radius: var(--r-lg); }
+.state h2 { margin: 0; font-size: 20px; color: var(--ink); }
+.state p { margin: 0; color: var(--ink-2); }
+.btn { justify-self: start; padding: 11px 16px; border-radius: 12px; border: 0; background: var(--ink); color: #111113; font: 700 14px var(--font); cursor: pointer; }
+.foot { font-size: 13px; color: var(--ink-4); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.foot button { background: none; border: 1px solid var(--hairline); color: var(--ink-3); border-radius: 10px; padding: 6px 10px; font: 600 12px var(--font); cursor: pointer; }
+
+/* ── 새로고침 ── */
+.refresh-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--glass-edge); background: rgba(255,255,255,0.06); color: var(--ink); font: 600 14px var(--font); cursor: pointer; }
+.refresh-btn:hover { background: rgba(255,255,255,0.12); }
+.refresh-ctl .ico { display: inline-block; }
+.refresh-ctl.spin .ico { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast { position: fixed; z-index: 50; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom,0px)); width: max-content; max-width: min(92vw, 420px); padding: 12px 16px; border-radius: 16px; color: var(--ink); font-size: 14px; text-align: center; }
+@media (min-width: 901px) { .toast { bottom: 24px; } }
+/* ── PIN 잠금 화면 ── */
+.gate { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px max(16px, env(safe-area-inset-right,0px)) 24px max(16px, env(safe-area-inset-left,0px)); }
+.gate[hidden] { display: none !important; }
+.gate-card { width: min(340px, 100%); border-radius: 28px; padding: 28px 22px 22px; display: grid; gap: 18px; justify-items: center; text-align: center; }
+.gate-card h2 { margin: 0; font-size: 22px; color: var(--ink); }
+.dots { display: flex; gap: 14px; }
+.dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink-3); display: block; transition: background .15s; }
+.dots i.on { background: var(--ink); border-color: var(--ink); }
+.gate-msg { margin: 0; min-height: 22px; font-size: 14px; color: var(--ink-3); }
+.gate-msg.err { color: var(--red); }
+.pad { display: grid; grid-template-columns: repeat(3, 72px); gap: 12px; }
+.pad button { height: 72px; border-radius: 50%; border: 1px solid var(--glass-edge); background: rgba(255,255,255,0.08); color: var(--ink); font: 500 26px var(--mono); cursor: pointer; }
+.pad button:active { background: rgba(255,255,255,0.22); }
+.pad button.ghost { background: transparent; border-color: transparent; font-size: 20px; }
+.pad button:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.shake { animation: shake .35s; }
+@keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+</head>
+<body>
+<div class="atmo" aria-hidden="true"></div>
+<canvas id="sky" aria-hidden="true"></canvas>
+
+<div class="app">
+  <aside class="side" aria-label="날짜와 섹션">
+    <div class="side-inner glass">
+      <div class="brand"><b>모닝 브리핑</b> · 성일하이텍 전략기획</div>
+      <div class="datebox">
+        <div class="datenav">
+          <button class="iconbtn" id="prevD" aria-label="이전 날짜">‹</button>
+          <select class="datesel" id="dateSel" aria-label="날짜 선택"></select>
+          <button class="iconbtn" id="nextD" aria-label="다음 날짜">›</button>
+          <button class="iconbtn cal" id="calD" type="button" aria-label="달력 열기" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
+        </div>
+      </div>
+      <nav class="nav" id="sideNav" aria-label="섹션"></nav>
+      <button class="refresh-btn refresh-ctl" id="refreshD" type="button"><span class="ico">↻</span> 새로고침</button>
+      <div class="side-wx" id="sideWx" hidden></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="mtop glass">
+      <button class="iconbtn" id="prevM" aria-label="이전 날짜">‹</button>
+      <select class="datesel" id="dateSelM" aria-label="날짜 선택"></select>
+      <button class="iconbtn" id="nextM" aria-label="다음 날짜">›</button>
+      <button class="iconbtn cal" id="calM" type="button" aria-label="달력 열기" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
+    </div>
+    <div class="wrap" id="view">
+      <div class="state glass"><h2>PIN을 입력해 주세요</h2><p>PIN이 맞으면 날짜별 브리핑이 열립니다.</p></div>
+    </div>
+  </main>
+</div>
+<nav class="mtabs glass" id="tabNav" aria-label="섹션"></nav>
+<div class="gate" id="gate">
+  <div class="gate-card glass" id="gateCard">
+    <div class="brand"><b>모닝 브리핑</b> · 성일하이텍 전략기획</div>
+    <h2>PIN 4자리</h2>
+    <div class="dots" id="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <p class="gate-msg" id="gateMsg" role="status"></p>
+    <div class="pad" id="pad" role="group" aria-label="숫자 키패드"></div>
+  </div>
+</div>
+<div class="toast glass" id="toast" role="status" hidden></div>
+<div class="calpop glass" id="calPop" role="dialog" aria-label="날짜 달력" hidden></div>
+
+<script>
+(() => {
+    const RANGE = "Sheet1!A2:C2000";
+  const SECTIONS = [["focus","할 일","todo"],["mail","메일","mail"],["schedule","일정","event"],["research","사전 조사","research"]];
+  const DOW = ["일","월","화","수","목","금","토"];
+
+  const $ = (s) => document.querySelector(s);
+  const view = $("#view");
+  let briefs = [];      // 최신순
+  let idx = 0;
+
+  function h(tag, attrs, ...kids) {
+    const n = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+    }
+    for (const k of kids.flat()) if (k != null && k !== false) n.append(k.nodeType ? k : document.createTextNode(String(k)));
+    return n;
+  }
+  // 할 일 동그라미 (모든 항목이 같은 모양이 되도록 SVG)
+  function ring(isEvent) {
+    const NS = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 18 18"); s.setAttribute("class", "ring" + (isEvent ? " is-event" : "")); s.setAttribute("aria-hidden", "true");
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", "9"); c.setAttribute("cy", "9"); c.setAttribute("r", "7.5");
+    c.setAttribute("fill", "none"); c.setAttribute("stroke", "currentColor"); c.setAttribute("stroke-width", "2");
+    s.append(c);
+    return s;
+  }
+  // "[확인 필요] ..." → 빨간 태그 + 본문
+  function rich(text) {
+    const s = String(text ?? "");
+    const m = s.match(/^\[확인 필요\]\s*(.*)$/);
+    return m ? [h("span", { class: "chk", text: "확인 필요" }), m[1]] : [s];
+  }
+  function fmtDate(d) { const [y, m, dd] = d.split("-").map(Number); return `${m}월 ${dd}일`; }
+  function dow(d) { const [y, m, dd] = d.split("-").map(Number); return DOW[new Date(y, m - 1, dd).getDay()]; }
+
+  // ── 상태 화면 ──
+  function showState(title, text, button) {
+    view.replaceChildren(h("div", { class: "state glass" }, h("h2", { text: title }), h("p", { text }), button || null));
+  }
+  // ── 데이터: Apps Script 서버가 PIN을 확인한 뒤에만 보내준다 ──
+  let pinValue = "";
+  function load(fresh) {
+    if (fresh) showState("새로 불러오는 중", "구글 시트에서 최신 브리핑을 읽고 있어요.");
+    google.script.run
+      .withSuccessHandler((list) => {
+        $("#gate").hidden = true;
+        briefs = list || [];
+        if (!briefs.length) return showState("아직 저장된 브리핑이 없어요", "매일 아침 07:05 루틴이 돌면 이곳에 날짜별로 쌓입니다.");
+        idx = fresh ? Math.min(idx, briefs.length - 1) : 0;
+        fillDates(); render();
+      })
+      .withFailureHandler((e) => {
+        const m = String((e && e.message) || e);
+        if (/WRONG|LOCKED|NO_PIN/.test(m)) return pinFail(m);
+        showState("브리핑을 불러오지 못했어요", "잠시 후 새로고침해 주세요. (" + m + ")");
+      })
+      .getBriefings(pinValue);
+  }
+
+  // ── 새로고침: 루틴을 지금 실행하고, 새 브리핑이 시트에 들어오면 자동으로 바꿔 보여준다 ──
+  let busy = false, pollTimer = 0, toastTimer = 0;
+  function toast(text, ms) {
+    const el = $("#toast"); el.textContent = text; el.hidden = false;
+    clearTimeout(toastTimer); if (ms) toastTimer = setTimeout(() => { el.hidden = true; }, ms);
+  }
+  const stamp = (list) => (list && list[0]) ? list[0].date + " " + (list[0].generated || "") : "";
+  function setRefreshing(on) { document.querySelectorAll(".refresh-ctl").forEach((b) => b.classList.toggle("spin", on)); }
+  function refreshNow() {
+    if (busy) return toast("브리핑을 만드는 중이에요. 끝나면 자동으로 바뀝니다.", 3000);
+    busy = true; setRefreshing(true);
+    toast("브리핑을 새로 만드는 중… 5~10분 걸려요");
+    const before = stamp(briefs);
+    google.script.run
+      .withSuccessHandler(() => { const t0 = Date.now(); pollTimer = setInterval(() => check(before, t0), 60000); })
+      .withFailureHandler((e) => {
+        busy = false; setRefreshing(false);
+        const m = String((e && e.message) || e);
+        if (/COOLDOWN/.test(m)) toast("방금(" + m.split(":").slice(1).join(":") + ") 실행했어요. 10분 뒤에 다시 누를 수 있어요.", 5000);
+        else if (/NO_TOKEN/.test(m)) toast("루틴 토큰이 설정되지 않았어요 (스크립트 속성 ROUTINE_TOKEN)", 6000);
+        else if (/FIRE_FAILED:40[13]/.test(m)) toast("루틴 토큰이 맞지 않아요. 새 토큰을 넣어 주세요.", 6000);
+        else if (/WRONG|LOCKED/.test(m)) toast("PIN 확인에 실패했어요. 새로고침(F5) 후 다시 들어와 주세요.", 6000);
+        else toast("루틴을 실행하지 못했어요: " + m, 8000);
+      })
+      .fireRoutine(pinValue);
+  }
+  function check(before, t0) {
+    google.script.run.withSuccessHandler((list) => {
+      if (stamp(list) !== before) {
+        clearInterval(pollTimer); busy = false;
+        briefs = list; idx = 0; fillDates(); render(); setRefreshing(false);
+        toast("최신 브리핑으로 바뀌었어요", 4000);
+      } else if (Date.now() - t0 > 20 * 60000) {
+        clearInterval(pollTimer); busy = false; setRefreshing(false);
+        toast("20분이 지나도 새 브리핑이 없어요. 잠시 후 다시 확인해 주세요.", 8000);
+      }
+    }).withFailureHandler(() => {}).getBriefings(pinValue);
+  }
+  // ── PIN 키패드 ──
+  let typed = "";
+  const dots = () => document.querySelectorAll("#dots i");
+  function paint() { dots().forEach((d, i) => d.classList.toggle("on", i < typed.length)); }
+  function press(k) {
+    if ($("#gate").hidden) return;
+    if (k === "del") typed = typed.slice(0, -1);
+    else if (/^\d$/.test(k) && typed.length < 4) typed += k;
+    paint();
+    if (typed.length === 4) { pinValue = typed; $("#gateMsg").className = "gate-msg"; $("#gateMsg").textContent = "확인 중…"; load(false); }
+  }
+  function pinFail(m) {
+    typed = ""; paint();
+    const msg = $("#gateMsg"); msg.className = "gate-msg err";
+    if (/NO_PIN/.test(m)) msg.textContent = "PIN이 아직 설정되지 않았어요 (스크립트 속성 PIN)";
+    else if (/LOCKED/.test(m)) msg.textContent = "5번 틀려서 15분 동안 잠겼어요";
+    else msg.textContent = "PIN이 맞지 않아요 · 남은 시도 " + (m.split(":")[1] || "") + "회";
+    const card = $("#gateCard"); card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+  }
+  ["1","2","3","4","5","6","7","8","9","","0","del"].forEach((k) => {
+    const b = h("button", { type: "button", class: k === "" || k === "del" ? "ghost" : null, "aria-label": k === "del" ? "지우기" : k || null, text: k === "del" ? "⌫" : k });
+    if (k === "") { b.disabled = true; b.style.visibility = "hidden"; } else b.onclick = () => press(k);
+    $("#pad").append(b);
+  });
+  addEventListener("keydown", (e) => { if ($("#gate").hidden) return; if (/^\d$/.test(e.key)) press(e.key); else if (e.key === "Backspace") press("del"); });
+  // ── 날짜 선택 ──
+  function fillDates() {
+    for (const sel of [$("#dateSel"), $("#dateSelM")]) {
+      sel.replaceChildren(...briefs.map((b, i) => h("option", { value: String(i), text: `${fmtDate(b.date)} (${b.weekday || dow(b.date)})` })));
+    }
+  }
+  function go(i) { if (i < 0 || i >= briefs.length) return; idx = i; render(); window.scrollTo({ top: 0 }); }
+  $("#prevD").onclick = $("#prevM").onclick = () => go(idx + 1);   // 이전 날짜 = 더 오래된 쪽
+  $("#nextD").onclick = $("#nextM").onclick = () => go(idx - 1);
+  $("#dateSel").onchange = (e) => go(Number(e.target.value));
+  $("#dateSelM").onchange = (e) => go(Number(e.target.value));
+  // ── 달력 팝오버 ──
+  const pop = $("#calPop");
+  let calMonth = null, calBtn = null;
+  const pad = (n) => String(n).padStart(2, "0");
+  function openCal(btn) {
+    if (!briefs.length) return;
+    if (!pop.hidden && calBtn === btn) return closeCal();
+    if (calBtn) calBtn.setAttribute("aria-expanded", "false");
+    calBtn = btn;
+    const [y, m] = briefs[idx].date.split("-").map(Number);
+    calMonth = new Date(y, m - 1, 1);
+    drawCal(); pop.hidden = false; btn.setAttribute("aria-expanded", "true"); placeCal();
+  }
+  function closeCal() { pop.hidden = true; if (calBtn) calBtn.setAttribute("aria-expanded", "false"); calBtn = null; }
+  function placeCal() {
+    if (!calBtn) return;
+    const r = calBtn.getBoundingClientRect(), w = pop.offsetWidth;
+    let left = r.left; if (left + w > innerWidth - 12) left = innerWidth - w - 12;
+    pop.style.left = Math.max(12, left) + "px"; pop.style.top = (r.bottom + 8) + "px";
+  }
+  function drawCal() {
+    const have = new Map(briefs.map((b, i) => [b.date, i]));
+    const y = calMonth.getFullYear(), m = calMonth.getMonth();
+    const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+    const t = new Date(), today = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+    const prev = h("button", { class: "iconbtn", type: "button", "aria-label": "이전 달", text: "‹" });
+    const next = h("button", { class: "iconbtn", type: "button", "aria-label": "다음 달", text: "›" });
+    prev.onclick = () => { calMonth = new Date(y, m - 1, 1); drawCal(); };
+    next.onclick = () => { calMonth = new Date(y, m + 1, 1); drawCal(); };
+    const grid = h("div", { class: "cal-g" }, DOW.map((d) => h("div", { class: "cal-w", text: d })));
+    for (let i = 0; i < first; i++) grid.append(h("div"));
+    for (let d = 1; d <= days; d++) {
+      const ds = `${y}-${pad(m + 1)}-${pad(d)}`, i = have.get(ds);
+      const b = h("button", { type: "button", text: String(d),
+        class: "cal-d" + (i != null ? " has" : "") + (i === idx ? " sel" : "") + (ds === today ? " today" : ""),
+        "aria-label": `${m + 1}월 ${d}일` + (i != null ? "" : " (브리핑 없음)") });
+      if (i == null) b.disabled = true; else b.onclick = () => { closeCal(); go(i); };
+      grid.append(b);
+    }
+    pop.replaceChildren(h("div", { class: "cal-h" }, prev, h("span", { text: `${y}년 ${m + 1}월` }), next), grid);
+  }
+  $("#calD").onclick = () => openCal($("#calD"));
+  $("#calM").onclick = () => openCal($("#calM"));
+  addEventListener("pointerdown", (e) => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest(".cal")) closeCal(); });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !pop.hidden) { const b = calBtn; closeCal(); b && b.focus(); } });
+  addEventListener("resize", placeCal);
+  addEventListener("scroll", () => { if (!pop.hidden) placeCal(); }, { passive: true });
+
+  addEventListener("hashchange", () => { const at = briefs.findIndex((b) => b.date === location.hash.slice(1)); if (at >= 0 && at !== idx) go(at); });
+
+  // ── 렌더 ──
+  function render() {
+    const b = briefs[idx];
+    document.documentElement.dataset.wx = ["sun","cloud","rain","snow"].includes(b.theme) ? b.theme : "sun";
+    startSky(document.documentElement.dataset.wx);
+    for (const sel of [$("#dateSel"), $("#dateSelM")]) sel.value = String(idx);
+    for (const id of ["#prevD","#prevM"]) $(id).disabled = idx >= briefs.length - 1;
+    for (const id of ["#nextD","#nextM"]) $(id).disabled = idx <= 0;
+    try { history.replaceState(null, "", "#" + b.date); } catch (e) {}
+
+    const c = b.counts || {};
+    const navItems = SECTIONS.map(([id, label, key]) => ({ id, label, n: c[key] ?? "" }));
+    $("#sideNav").replaceChildren(...navItems.map((it) => {
+      const btn = h("button", { class: "navlink", type: "button", "data-sec": it.id }, h("span", { text: it.label }), h("span", { class: "n", text: String(it.n) }));
+      btn.onclick = () => jump(it.id); return btn;
+    }));
+    $("#tabNav").replaceChildren(...navItems.map((it) => {
+      const btn = h("button", { class: "tab", type: "button", "data-sec": it.id }, h("span", { class: "n", text: String(it.n) }), h("span", { text: it.label }));
+      btn.onclick = () => jump(it.id); return btn;
+    }));
+    const rt = h("button", { class: "tab refresh-ctl" + (busy ? " spin" : ""), type: "button", "aria-label": "브리핑 새로 만들기" },
+      h("span", { class: "n ico", text: "↻" }), h("span", { text: "새로고침" }));
+    rt.onclick = refreshNow;
+    $("#tabNav").append(rt);
+
+    const w = (b.weather && b.weather.places) || [];
+    const main = w[0];
+    const sw = $("#sideWx");
+    if (main && main.max != null) {
+      sw.hidden = false;
+      sw.replaceChildren(h("div", { class: "k", text: `${main.name} · 오늘` }), h("div", { class: "v", text: `${main.max}° / ${main.min}°` }), h("div", { class: "meta", text: main.sky || "" }));
+    } else sw.hidden = true;
+
+    view.replaceChildren(
+      hero(b),
+      bento(b, w),
+      mailSec(b),
+      schedSec(b),
+      researchSec(b),
+      h("div", { class: "foot" },
+        h("span", { text: `${fmtDate(b.date)} ${b.generated || ""} 생성 · 구글 시트 "모닝 브리핑 DB"` }),
+        (() => { const r = h("button", { type: "button", text: "새로 불러오기" }); r.onclick = () => load(true); return r; })())
+    );
+    spy();
+  }
+
+  function hero(b) {
+    const head = String(b.headline || "");
+    const p = h("p");
+    const m = head.match(/^(.*?)(\d+건)(.*)$/);
+    if (m) p.append(m[1], h("b", { text: m[2] }), m[3]); else p.append(head);
+    if (b.weather_line) p.append(" ", b.weather_line);
+    return h("section", { class: "hero" },
+      h("div", { class: "dow", text: `${b.weekday || dow(b.date)}요일 아침 브리핑` }),
+      h("h1", { text: fmtDate(b.date) }), p);
+  }
+
+  function bento(b, w) {
+    const todos = b.todos || [];
+    const todo = h("section", { class: "panel sec", id: "focus" },
+      h("h3", null, "오늘 할 일", h("span", { class: "n", text: String(todos.length) })),
+      h("div", null, todos.length ? todos.map((t) => h("div", { class: "todo" },
+        ring(t.kind === "event"),
+        h("div", null, h("div", { class: "t", text: t.title }),
+          h("div", { class: "meta" }, t.due ? [h("span", { class: "due", text: t.due }), " · "] : null, t.meta || ""))))
+        : h("div", { class: "none", text: "오늘 할 일이 없어요" })));
+
+    const main = w[0];
+    const wx = h("div", { class: "wx glass" },
+      h("div", { class: "k", text: `${main ? main.name : "전주"} · 오늘 예보` }),
+      h("div", { class: "big" },
+        h("div", { class: "deg", text: main && main.max != null ? `${main.max}°` : "—" }),
+        h("div", { class: "sky" }, h("b", { text: main ? main.sky || "정보 없음" : "정보 없음" }),
+          h("span", { class: "meta", text: main && main.min != null ? `최저 ${main.min}° · ${main.rain || ""}` : "예보를 받지 못했어요" }))),
+      h("div", { class: "rows" }, w.slice(1).map((p) => h("div", { class: "row" },
+        h("span", { text: p.name }),
+        h("span", { text: p.max != null ? `${p.sky} · ${p.max}° / ${p.min}°` : "정보 없음" })))));
+
+    const ne = b.next_event;
+    const next = h("div", { class: "panel next" },
+      h("div", { class: "meta", text: "다음 일정" }),
+      ne ? h("div", { class: "row" }, h("div", { class: "when", text: ne.time }),
+        h("div", null, h("div", { class: "t", style: "color:var(--ink);font-weight:600", text: ne.title }), h("div", { class: "meta", text: ne.meta || "" })))
+        : h("div", { class: "none", text: "오늘 남은 일정 없음" }));
+
+    return h("div", { class: "bento" }, todo, h("div", { class: "stack" }, wx, next));
+  }
+
+  function mailItem(m, withAction) {
+    return h("div", { class: "mail" },
+      h("div", { class: "top" }, h("span", { class: "from", text: m.from }), h("span", { class: "time", text: m.time })),
+      h("div", { class: "subj", text: m.subject }),
+      h("div", { class: "sum" }, rich(m.summary)),
+      withAction && m.action ? h("div", { class: "act", text: "→ " + m.action }) : null);
+  }
+  function mailSec(b) {
+    const a = b.mail_action || [], r = b.mail_ref || [];
+    return h("section", { class: "sec", id: "mail" },
+      h("div", { class: "sec-h" }, h("h2", { text: "메일" }), h("span", { class: "sub", text: b.mail_range || "" })),
+      h("div", { class: "cols" },
+        h("div", null, h("div", { class: "grp-h act" }, "답장·처리 필요", h("span", { class: "n", text: String(a.length) })),
+          h("div", { class: "panel list" }, a.length ? a.map((m) => mailItem(m, true)) : h("div", { class: "none", text: "해당 없음" }))),
+        h("div", null, h("div", { class: "grp-h" }, "참고만", h("span", { class: "n", text: String(r.length) })),
+          h("div", { class: "panel list" }, r.length ? r.map((m) => mailItem(m, false)) : h("div", { class: "none", text: "해당 없음" })))));
+  }
+
+  function schedSec(b) {
+    const ev = b.events || [];
+    return h("section", { class: "sec", id: "schedule" },
+      h("div", { class: "sec-h" }, h("h2", { text: "일정" }), h("span", { class: "sub", text: "개인 + 전략기획 팀 캘린더" })),
+      h("div", { class: "panel list" }, ev.length ? ev.map((e) => h("div", { class: "ev" },
+        h("div", null, h("div", { class: "s", text: e.start }), h("div", { class: "e", text: e.end || "" })),
+        h("div", { class: "bar" + (e.research ? " rs" : "") }),
+        h("div", null, h("div", { class: "t", text: e.title }),
+          h("div", { class: "meta" }, e.meta || "", e.research ? h("span", { style: "color:var(--amber);font-weight:600", text: " · 사전 조사 ↓" }) : null),
+          e.memo ? h("div", { class: "memo", text: "메모 · " + e.memo }) : null)))
+        : h("div", { class: "none", text: "등록된 일정 없음" })),
+      (b.tomorrow || []).length ? h("div", { class: "tmr", text: "내일 · " + b.tomorrow.join("   ·   ") }) : null);
+  }
+
+  function researchSec(b) {
+    const rs = b.research || [];
+    return h("section", { class: "sec", id: "research" },
+      h("div", { class: "sec-h" }, h("h2", { text: "사전 조사" }), h("span", { class: "sub", text: "미팅 전에 알아둘 것" })),
+      rs.length ? h("div", { class: "cols" }, rs.map((r) => h("div", { class: "panel rs-card" },
+        h("div", { class: "lb", text: r.label }),
+        h("h4", null, rich(r.headline)),
+        h("ul", null, (r.facts || []).map((f) => h("li", null, rich(f)))),
+        (r.questions || []).length ? [h("div", { class: "q", text: "물어볼 것" }), h("ul", null, r.questions.map((q) => h("li", null, rich(q))))] : null,
+        (r.sources || []).length ? h("div", { class: "src" }, "출처  ", r.sources.flatMap((s, i) => [i ? " · " : "", h("a", { href: s.url, target: "_blank", rel: "noopener", text: s.name })])) : null)))
+        : h("div", { class: "panel" }, h("div", { class: "none", text: "조사할 일정 없음" })));
+  }
+
+  // ── 섹션 이동 + 현재 위치 표시 ──
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function jump(id) { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }); }
+  let io;
+  function spy() {
+    if (io) io.disconnect();
+    const mark = (id) => document.querySelectorAll("[data-sec]").forEach((n) => n.classList.toggle("on", n.dataset.sec === id));
+    mark("focus");
+    io = new IntersectionObserver((ents) => {
+      const vis = ents.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (vis) mark(vis.target.id);
+    }, { rootMargin: "-20% 0px -60% 0px" });
+    for (const [id] of SECTIONS) { const el = document.getElementById(id); if (el) io.observe(el); }
+  }
+
+  // ── 날씨 입자 (비·눈) ──
+  const cv = $("#sky"), ctx = cv.getContext("2d");
+  let parts = [], mode = "", raf = 0;
+  function size() { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
+  addEventListener("resize", size); size();
+  function startSky(m) {
+    if (m === mode) return; mode = m; cancelAnimationFrame(raf); ctx.clearRect(0, 0, cv.width, cv.height);
+    if (reduce || (m !== "rain" && m !== "snow")) return;
+    const n = m === "rain" ? 140 : 110;
+    parts = Array.from({ length: n }, () => ({ x: Math.random(), y: Math.random(), s: 0.4 + Math.random() * 0.8 }));
+    const tick = () => {
+      const W = cv.width, H = cv.height, d = devicePixelRatio;
+      ctx.clearRect(0, 0, W, H);
+      for (const p of parts) {
+        if (m === "rain") {
+          p.y += 0.012 * p.s; p.x += 0.002 * p.s;
+          ctx.strokeStyle = `rgba(170,210,255,${0.10 + 0.18 * p.s})`; ctx.lineWidth = 1 * d;
+          ctx.beginPath(); ctx.moveTo(p.x * W, p.y * H); ctx.lineTo(p.x * W + 4 * d, p.y * H + 18 * d * p.s); ctx.stroke();
+        } else {
+          p.y += 0.0012 * p.s; p.x += Math.sin((p.y + p.s) * 12) * 0.0006;
+          ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.4 * p.s})`;
+          ctx.beginPath(); ctx.arc(p.x * W, p.y * H, (1 + 1.6 * p.s) * d, 0, Math.PI * 2); ctx.fill();
+        }
+        if (p.y > 1.02) { p.y = -0.02; p.x = Math.random(); }
+        if (p.x > 1.02) p.x = -0.02;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  $("#refreshD").onclick = refreshNow;
+  // ── 시작: PIN 화면이 먼저 뜬다 ──
+  paint();
+})();
+</script>
+</body>
+</html>

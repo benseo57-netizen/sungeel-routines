@@ -128,7 +128,7 @@ Ben(ben.seo@sungeelht.com)이 매일 아침 07:05(KST)에 하루를 한눈에 �
 확실하지 않으면 해당 문장 맨 앞에 `[확인 필요] `를 붙인다(웹앱이 빨간 태그로 보여준다).
 
 ## 6단계: 구글 시트에 저장 (웹앱이 읽는 유일한 출력)
-**이메일은 보내지 않는다**(Resend 사용 안 함, HTML도 만들지 않는다). 결과물은 구글 시트 한 줄뿐이며, 웹앱(https://claude.ai/artifact/96tgki5qiP6uc3os1aDctH)이 이 시트를 읽어 날짜별로 보여준다.
+**이메일은 보내지 않는다**(Resend 사용 안 함, HTML도 만들지 않는다). 결과물은 구글 시트 한 줄뿐이며, 웹앱(https://script.google.com/macros/s/AKfycbw0MDCNYfA2-RxgEFPT8WIO2LBhDnUv9PcQaOdA5TLIJmUAU6aPJD6I5yLtzmKCohM/exec (구글 Apps Script, 본인 구글 계정 + PIN))이 이 시트를 읽어 날짜별로 보여준다.
 - 시트: "모닝 브리핑 DB", spreadsheetId `1zryRTw55FBuubXkyOk5qO4hRQZqZg6aa7Eh7YJQXn0g`, 범위 `Sheet1!A:C`
 - Google Sheets `append_values`를 **한 번** 호출: `values = [["YYYY-MM-DD", "YYYY-MM-DD HH:MM", "<JSON 문자열>"]]`. 같은 날짜를 다시 실행하면 그냥 한 줄 더 추가한다(웹앱은 같은 날짜 중 마지막 줄을 쓴다).
 - JSON은 아래 형태를 **정확히** 따른다(키 이름 변경 금지, 값은 HTML 없는 순수 텍스트):
